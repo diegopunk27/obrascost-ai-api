@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  ai-api:
+    build:
+      context: .
+      target: production
+    container_name: bun-ai-load-balancer
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # Development service with hot reload
+  ai-api-dev:
+    build:
+      context: .
+      target: base
+    container_name: bun-ai-load-balancer-dev
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      - NODE_ENV=development
+      - PORT=8080
+    env_file:
+      - .env
+    volumes:
+      - ./src:/app/src:ro
+      - ./package.json:/app/package.json:ro
+    command: bun run --watch src/index.ts
+    profiles:
+      - development

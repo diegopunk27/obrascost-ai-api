@@ -1,0 +1,20 @@
+{
+    "name": "bun-ai-api-load-balancer",
+    "module": "src/index.ts",
+    "type": "module",
+    "scripts": {
+        "start": "bun run src/index.ts",
+        "dev": "bun --watch src/index.ts",
+        "test": "bash test-api.sh",
+        "test:groq": "TARGET_SERVICE=groq bash test-api.sh",
+        "test:cerebras": "TARGET_SERVICE=cerebras bash test-api.sh",
+        "test:openrouter": "TARGET_SERVICE=openrouter bash test-api.sh"
+    },
+    "dependencies": {
+        "@cerebras/cerebras_cloud_sdk": "^1.0.0",
+        "groq-sdk": "^0.3.3"
+    },
+    "devDependencies": {
+        "@types/bun": "latest"
+    }
+}

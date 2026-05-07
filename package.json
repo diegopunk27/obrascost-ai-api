@@ -5,7 +5,9 @@
     "scripts": {
         "start": "bun run src/index.ts",
         "dev": "bun --watch src/index.ts",
-        "test": "bash test-api.sh",
+        "typecheck": "bun build src/index.ts --target bun --no-bundle",
+        "test": "bun test src/",
+        "test:integration": "bash test-api.sh",
         "test:groq": "TARGET_SERVICE=groq bash test-api.sh",
         "test:cerebras": "TARGET_SERVICE=cerebras bash test-api.sh",
         "test:openrouter": "TARGET_SERVICE=openrouter bash test-api.sh"

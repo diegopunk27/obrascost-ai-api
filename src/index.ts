@@ -1,5 +1,6 @@
 import { getNextService, services } from "./services";
 import type { ChatMessage, EstimacionObraRequest, EstimacionObraResponse } from "./types";
+import { extractJsonBlock } from "./utils";
 
 const PORT = parseInt(process.env.PORT || "8080", 10);
 
@@ -122,17 +123,6 @@ async function createCompleteResponse(messages: ChatMessage[], targetService?: s
   }
 }
 
-// Parse the first JSON block out of an LLM response text
-function extractJsonBlock(text: string): Record<string, unknown> {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}") + 1;
-  if (start === -1 || end === 0) return {};
-  try {
-    return JSON.parse(text.slice(start, end)) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
 
 // Build the prompt messages for the estimacion-obra endpoint
 function buildEstimacionMessages(req: EstimacionObraRequest): ChatMessage[] {

@@ -1,193 +1,157 @@
-# Bun AI API Load Balancer
+# ObrasCost — API Multiagente
 
-A high-performance AI API load balancer built with Bun that distributes requests across multiple AI service providers (Groq, Cerebras, and OpenRouter) using a round-robin strategy.
+Load balancer de proveedores LLM y endpoint de estimación inteligente para **ObrasCost**. Construido con Bun + TypeScript.
 
-## Features
+## Stack
 
-- **Load Balancing**: Round-robin distribution across multiple AI services.
-- **Dynamic Configuration**: Configure models and API keys for each service via `.env`.
-- **Targeted Requests**: Force a specific service using the `targetService` parameter.
-- **Conditional Registration**: Services are only added to the rotation if their API key is present.
-- **Dual Response Modes**:
-  - Streaming responses for real-time chat.
-  - Complete responses for batch processing.
-- **Comprehensive Testing Suite**: Built-in scripts to test infrastructure and specific services.
-- **Built with Bun**: Ultra-fast JavaScript runtime with native TypeScript support.
-- **Docker Support**: Production-ready containerization.
+| Concern | Tecnología |
+|---|---|
+| Runtime | Bun |
+| Lenguaje | TypeScript |
+| Proveedores LLM | Groq, Cerebras, OpenRouter |
+| Estrategia | Round-robin con fallback |
+| Tests | bun:test |
 
-## Architecture
+## Arquitectura
 
 ```
-Client Request
-     ↓
-Load Balancer (Round Robin / Specific Target)
-     ↓
+Cliente (BE ObrasCost)
+        ↓
+Load Balancer (Round Robin / Target específico)
+        ↓
 ┌──────────────┬───────────────┬────────────────┐
 │     Groq     │   Cerebras    │   OpenRouter   │
 └──────────────┴───────────────┴────────────────┘
 ```
 
-## Prerequisites
+## Inicio rápido
 
-- [Bun](https://bun.sh) v1.0 or later (for local development)
-- Docker & Docker Compose (for containerized deployment)
-- API Keys for at least one service:
-  - Groq API Key
-  - Cerebras API Key
-  - OpenRouter API Key
-
-## Installation
-
-### Local Development
-
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd api-multiagente
-```
-
-2. Install dependencies:
 ```bash
 bun install
-```
-
-3. Create a `.env` file based on `.env.example`:
-```bash
 cp .env.example .env
-```
-
-4. Add your API keys and (optional) model preferences to `.env`:
-```env
-GROQ_API_KEY=gsk_...
-CEREBRAS_API_KEY=csk-...
-OPENROUTER_API_KEY=sk-or-v1-...
-
-# Optional: Default models are used if not specified
-GROQ_MODEL=llama-3.3-70b-versatile
-CEREBRAS_MODEL=llama3.1-8b
-OPENROUTER_MODEL=nvidia/nemotron-3-super-120b-a12b:free
-```
-
-5. Run the development server:
-```bash
-bun run dev
+# Agregar al menos una API key en .env
+bun run dev    # http://localhost:8080
 ```
 
 ## API Endpoints
 
-### Health Check
+### Health
 
-**GET** `/`
+```
+GET /
+```
 
-Returns the API status, available endpoints, and currently active services in the pool.
+Devuelve estado y proveedores activos en el pool.
 
-**Response:**
+### Chat completo
+
+```
+POST /chat/complete
+```
+
 ```json
 {
-  "status": "ok",
-  "message": "Bun AI API Load Balancer is running",
-  "activeServices": [
-    "Groq (llama-3.3-70b-versatile)",
-    "Cerebras (llama3.1-8b)",
-    "OpenRouter (nvidia/nemotron-3-super-120b-a12b:free)"
-  ],
-  "endpoints": {
-    "streaming": "POST /chat/stream",
-    "complete": "POST /chat/complete"
+  "messages": [{ "role": "user", "content": "..." }],
+  "targetService": "groq"
+}
+```
+
+### Chat streaming
+
+```
+POST /chat/stream
+```
+
+Igual que `/chat/complete` pero responde con SSE en tiempo real.
+
+### Estimación de obra (ObrasCost)
+
+```
+POST /estimacion-obra
+```
+
+Recibe la metadata de la obra y la estimación heurística previa. Retorna análisis LLM.
+
+**Request:**
+```json
+{
+  "obra": {
+    "nombre": "Casa Martínez",
+    "superficie_m2": 150,
+    "provincia": "Buenos Aires"
+  },
+  "estimacion_heuristica": {
+    "total_estimado": 3000000,
+    "desglose_por_rubro": { "Estructura": 2000000, "Pintura": 500000 },
+    "margen_error_pct": 15
   }
 }
 ```
 
-### Complete Chat
-
-**POST** `/chat/complete`
-
-Waits for the full AI response before returning.
-
-**Request Body:**
+**Response:**
 ```json
 {
-  "messages": [
-    {"role": "user", "content": "What is 2+2?"}
-  ],
-  "targetService": "groq" 
-}
-```
-*`targetService` is optional. Use it to force a specific provider (case-insensitive search in service name).*
-
-**Success Response (200):**
-```json
-{
-  "success": true,
-  "response": "2 + 2 is 4.",
-  "service": "Groq (llama-3.3-70b-versatile)"
+  "sugerencia_ia": "Considerar aumento en terminaciones dado el costo del m² en la zona.",
+  "ajuste_recomendado_pct": 5,
+  "alertas": ["Costo elevado para la región"]
 }
 ```
 
-### Streaming Chat
+> Este endpoint es consumido exclusivamente por el backend de ObrasCost, no por el frontend directamente.
 
-**POST** `/chat/stream`
+## Testing
 
-Streams AI responses in real-time. Supports the same `targetService` parameter.
-
-**Example with curl:**
 ```bash
-curl -X POST http://localhost:8080/chat/stream \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [{"role": "user", "content": "Count to 5"}],
-    "targetService": "cerebras"
-  }'
+bun test src/
 ```
 
-## Development & Testing
+Tests unitarios del módulo `src/utils.ts` (extracción de JSON de respuestas LLM):
 
-### Test Suite
+| Test | Descripción |
+|---|---|
+| JSON válido embebido | Extrae correctamente el bloque JSON |
+| Texto vacío | Retorna `{}` |
+| Sin JSON | Retorna `{}` |
+| Texto antes/después | Extrae solo el bloque JSON |
+| JSON inválido | Retorna `{}` con fallback graceful |
+| Arrays en el texto | Ignora arrays, busca objeto `{}` |
 
-The project includes a comprehensive test script `test-api.sh` that validates infrastructure, error handling, and service rotation.
+## CI/CD (GitHub Actions)
 
-Run all tests:
-```bash
-yarn test
+Workflow: [`.github/workflows/bun-ci.yml`](.github/workflows/bun-ci.yml)
+
+| Step | Qué hace |
+|---|---|
+| Setup Bun | `oven-sh/setup-bun@v2` |
+| Install | `bun install` |
+| Typecheck | `bun build src/index.ts --target bun --no-bundle` |
+| Test | `bun test src/` |
+
+**Triggers:** push y PR a `main` / `development`.
+
+## Variables de entorno
+
+| Variable | Descripción |
+|---|---|
+| `PORT` | Puerto del servidor (default: 8080) |
+| `GROQ_API_KEY` | API key de Groq |
+| `CEREBRAS_API_KEY` | API key de Cerebras |
+| `OPENROUTER_API_KEY` | API key de OpenRouter |
+| `GROQ_MODEL` | Modelo Groq (default: `llama-3.3-70b-versatile`) |
+| `CEREBRAS_MODEL` | Modelo Cerebras (default: `llama3.1-8b`) |
+| `OPENROUTER_MODEL` | Modelo OpenRouter (default: `nvidia/nemotron-3-super-120b-a12b:free`) |
+
+## Estructura del proyecto
+
 ```
-
-Test a specific service:
-```bash
-yarn test:groq
-yarn test:cerebras
-yarn test:openrouter
+src/
+  index.ts          Servidor principal + routing
+  types.ts          Tipos TypeScript
+  utils.ts          extractJsonBlock() — parsing de respuestas LLM
+  utils.test.ts     Tests unitarios
+  services/
+    index.ts        Load balancer + registry
+    groq.ts         Adaptador Groq
+    cerebras.ts     Adaptador Cerebras
+    openrouter.ts   Adaptador OpenRouter
 ```
-
-### Project Structure
-
-```
-api-multiagente/
-├── src/
-│   ├── index.ts              # Main server & routing
-│   ├── types.ts              # Type definitions
-│   └── services/
-│       ├── index.ts          # Load balancer & Registry
-│       ├── groq.ts           # Groq adapter
-│       ├── cerebras.ts       # Cerebras adapter
-│       └── openrouter.ts     # OpenRouter adapter
-├── test-api.sh               # Advanced Bash test suite
-├── Dockerfile                # Production Docker build
-├── .env.example              # Environment template
-└── package.json              # Scripts & dependencies
-```
-
-## Environment Variables
-
-| Variable | Description |
-|----------|-------------|
-| `PORT` | Server port (default: 8080) |
-| `GROQ_API_KEY` | Groq API Key |
-| `CEREBRAS_API_KEY`| Cerebras API Key |
-| `OPENROUTER_API_KEY`| OpenRouter API Key |
-| `GROQ_MODEL` | (Optional) Groq model ID |
-| `CEREBRAS_MODEL` | (Optional) Cerebras model ID |
-| `OPENROUTER_MODEL`| (Optional) OpenRouter model ID |
-
-## License
-
-MIT

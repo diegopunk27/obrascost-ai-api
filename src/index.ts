@@ -36,12 +36,24 @@ function validateChatRequest(body: unknown): { valid: true; messages: ChatMessag
   return { valid: true, messages, targetService };
 }
 
+// CORS headers — abierto a todos los origins porque la API no usa cookies
+// ni credenciales. Necesario para que el FE (en netlify.app) pueda hacer
+// el ping de warmup directo desde el browser y despertar este servicio
+// del cold start de Render free tier.
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
+
 // Helper to create JSON response
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "Content-Type": "application/json",
+      ...CORS_HEADERS,
     },
   });
 }
@@ -228,6 +240,19 @@ const server = Bun.serve({
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
 
+    // CORS preflight — responde a cualquier OPTIONS sin tocar el resto del routing
+    if (req.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+
+    // Warmup endpoint — usado por el FE para despertar este servicio del cold
+    // start de Render free tier ANTES de que el usuario haga click en
+    // "Estimar con IA". No invoca al LLM (no consume cuota), solo confirma
+    // que el dyno está activo.
+    if (req.method === "GET" && url.pathname === "/warmup") {
+      return jsonResponse({ status: "warm", services: services.map(s => s.name) });
+    }
+
     // Health check endpoint
     if (req.method === "GET" && url.pathname === "/") {
       return jsonResponse({
@@ -235,6 +260,7 @@ const server = Bun.serve({
         message: "Bun AI API Load Balancer is running",
         activeServices: services.map(s => s.name),
         endpoints: {
+          warmup: "GET /warmup",
           streaming: "POST /chat/stream",
           complete: "POST /chat/complete",
           estimacionObra: "POST /estimacion-obra",
